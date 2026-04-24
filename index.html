@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>劳务狗狗 · Labor Dog</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,700&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@300;400;500;600&family=Noto+Serif+SC:wght@300;400;500;600;700;900&family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* ============ 主题色(默认:🖋 墨水经典) ============
+       切换主题:从 references/themes.md 复制对应的 :root 块
+       整体替换这几行(--ink / --ink-rgb / --paper / --paper-rgb)
+       其他地方散落的 rgba() 都走 var(--ink-rgb) / var(--paper-rgb),无需逐处改 */
+    --ink:#0a0a0b;
+    --ink-rgb:10,10,11;
+    --paper:#f1efea;
+    --paper-rgb:241,239,234;
+    --paper-tint:#e8e5de;
+    --ink-tint:#18181a;
+
+    /* ============ 字体(跨主题固定) ============ */
+    --mono:"IBM Plex Mono",ui-monospace,monospace;
+    --serif-en:"Playfair Display","Source Serif 4",Georgia,serif;
+    --serif-body-en:"Source Serif 4",Georgia,serif;
+    --serif-zh:"Noto Serif SC",source-han-serif-sc,serif;
+    --sans-zh:"Noto Sans SC",source-han-sans-sc,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:100%;height:100%;overflow:hidden;background:var(--ink);color:var(--paper);font-family:var(--sans-zh);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+
+  /* ============ WebGL 双背景 ============ */
+  canvas.bg{position:fixed;inset:0;width:100vw;height:100vh;z-index:0;display:block;transition:opacity 1.2s ease}
+  canvas#bg-light{opacity:0}
+  canvas#bg-dark{opacity:1}
+  body.light-bg canvas#bg-light{opacity:1}
+  body.light-bg canvas#bg-dark{opacity:0}
+
+  /* ============ Deck 容器 + 翻页 ============ */
+  /* width: NSLIDES * 100vw，会在 JS 里动态矫正 */
+  #deck{position:fixed;inset:0;width:10000vw;height:100vh;display:flex;flex-wrap:nowrap;transition:transform .9s cubic-bezier(.77,0,.175,1);z-index:10;will-change:transform}
+  .slide{width:100vw;height:100vh;flex:0 0 100vw;position:relative;padding:6vh 6vw 10vh 6vw;display:flex;flex-direction:column;overflow:hidden}
+  .slide.light{color:var(--ink)}
+  .slide.dark{color:var(--paper)}
+
+  /* 默认页：遮罩较厚，保证文字可读 */
+  .slide::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;transition:background .7s ease}
+  .slide.light::before{background:rgba(var(--paper-rgb),.78);backdrop-filter:blur(3px)}
+  .slide.dark::before{background:rgba(var(--ink-rgb),.78);backdrop-filter:blur(3px)}
+  /* Hero 页：遮罩大幅降低，让 WebGL 背景明显透出 */
+  .slide.hero.light::before{background:rgba(var(--paper-rgb),.16);backdrop-filter:none}
+  .slide.hero.dark::before{background:rgba(var(--ink-rgb),.12);backdrop-filter:none}
+  /* Hero 页顶底微弱渐隐，保证 chrome/foot 区域可读 */
+  .slide.hero::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none}
+  .slide.hero.light::after{background:linear-gradient(180deg,rgba(var(--paper-rgb),.28) 0%,rgba(var(--paper-rgb),0) 14%,rgba(var(--paper-rgb),0) 86%,rgba(var(--paper-rgb),.28) 100%)}
+  .slide.hero.dark::after{background:linear-gradient(180deg,rgba(var(--ink-rgb),.32) 0%,rgba(var(--ink-rgb),0) 14%,rgba(var(--ink-rgb),0) 86%,rgba(var(--ink-rgb),.32) 100%)}
+
+  /* ============ Magazine chrome：顶部 meta + 底部 foot ============ */
+  .chrome{display:flex;justify-content:space-between;align-items:flex-start;font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;opacity:.7}
+  .chrome .left,.chrome .right{display:flex;gap:2.4em;align-items:center}
+  .chrome .sep{width:40px;height:1px;background:currentColor;opacity:.4}
+  .foot{margin-top:auto;display:flex;justify-content:space-between;align-items:flex-end;font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;opacity:.55}
+  .foot .title{font-family:var(--serif-zh);font-weight:400;letter-spacing:.05em;text-transform:none;opacity:.75;font-size:13px}
+
+  .tag{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.24em;text-transform:uppercase;padding:6px 14px;border:1px solid currentColor;opacity:.85}
+  .rule{width:100%;height:1px;background:currentColor;opacity:.25;margin:3vh 0}
+  .rule.v{width:1px;height:100%;margin:0}
+
+  /* ============ 字体规则 ============
+     · 衬线（Noto Serif SC / Playfair）：大标题、重点金句、数字
+     · 非衬线（Noto Sans SC）：正文描述、body、补充说明
+     · 等宽（IBM Plex Mono）：kicker、meta 小标签、foot 右侧
+  */
+  .kicker{font-family:var(--mono);font-size:12px;letter-spacing:.3em;text-transform:uppercase;opacity:.6;margin-bottom:2.6vh}
+  .display{font-family:var(--serif-en);font-weight:700;font-size:11vw;line-height:.92;letter-spacing:-.025em}
+  .display-zh{font-family:var(--serif-zh);font-weight:700;font-size:7.8vw;line-height:1.04;letter-spacing:-.005em}
+  .h1-zh{font-family:var(--serif-zh);font-weight:700;font-size:4.6vw;line-height:1.12;letter-spacing:-.005em}
+  .h2-zh{font-family:var(--serif-zh);font-weight:600;font-size:3.2vw;line-height:1.2;letter-spacing:0}
+  .h3-zh{font-family:var(--serif-zh);font-weight:500;font-size:1.9vw;line-height:1.35}
+  .body-zh{font-family:var(--sans-zh);font-weight:400;font-size:max(15px,1.22vw);line-height:1.75;opacity:.82;letter-spacing:.01em}
+  .body-serif{font-family:var(--serif-zh);font-weight:400;font-size:max(15px,1.3vw);line-height:1.65;opacity:.88}
+  .lead{font-family:var(--serif-zh);font-weight:400;font-size:1.9vw;line-height:1.4;opacity:.85}
+  .meta{font-family:var(--mono);font-size:max(11px,.88vw);letter-spacing:.16em;text-transform:uppercase;opacity:.6}
+  .big-num{font-family:var(--serif-en);font-weight:800;font-size:10vw;line-height:.85;letter-spacing:-.03em;font-feature-settings:"tnum"}
+  .mid-num{font-family:var(--serif-en);font-weight:700;font-size:5.5vw;line-height:.88;letter-spacing:-.02em;font-feature-settings:"tnum"}
+  .ghost{font-family:var(--serif-en);font-weight:900;font-size:34vw;line-height:.8;opacity:.06;letter-spacing:-.04em;position:absolute;font-feature-settings:"tnum"}
+  em{font-style:italic;font-family:var(--serif-en)}
+  .en{font-family:var(--serif-en);font-style:italic;font-weight:500}
+
+  /* ============ 布局工具 ============ */
+  .col{display:flex;flex-direction:column;gap:2.4vh}
+  .row{display:flex;align-items:center;gap:3vw}
+  .grid-6{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,1fr);gap:4vw 6vw;flex:1;align-content:center;padding:2vh 0}
+  .grid-9{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:3vh 4vw;flex:1;align-content:center}
+  .grid-4{display:grid;grid-template-columns:repeat(2,1fr);grid-template-rows:repeat(2,1fr);gap:4vh 6vw;flex:1;align-content:center}
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:4vw;flex:1;align-content:center}
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:4vw;flex:1;align-items:center}
+  .split-55{display:grid;grid-template-columns:55fr 45fr;gap:5vw;flex:1;align-items:stretch}
+  .fill{flex:1}
+  .center{align-items:center;justify-content:center;text-align:center}
+  .bottom-left{position:absolute;left:6vw;bottom:9vh;max-width:50vw}
+  .bottom-right{position:absolute;right:6vw;bottom:9vh;max-width:50vw;text-align:right}
+  .top-right{position:absolute;right:6vw;top:6vh;text-align:right}
+
+  /* ============ Stat（数字矩阵） ============ */
+  .stat{display:flex;flex-direction:column;gap:1vh;align-items:flex-start}
+  .stat .n{font-family:var(--serif-en);font-weight:800;font-size:8vw;line-height:.88;letter-spacing:-.03em;font-feature-settings:"tnum"}
+  .stat .l{font-family:var(--sans-zh);font-size:max(13px,1.05vw);opacity:.7;margin-top:1vh;font-weight:400;line-height:1.5}
+  .stat .m{font-family:var(--mono);font-size:10px;letter-spacing:.22em;text-transform:uppercase;opacity:.5;margin-bottom:.2vh}
+
+  /* ============ Callout（引用框） ============ */
+  .callout{padding:3vh 2.4vw;border-left:3px solid currentColor;position:relative;font-family:var(--serif-zh);font-size:max(15px,1.2vw);line-height:1.55;opacity:.92}
+  .slide.light .callout{background:rgba(var(--ink-rgb),.05)}
+  .slide.dark .callout{background:rgba(var(--paper-rgb),.06)}
+  .callout .cite{display:block;margin-top:1.6vh;font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;opacity:.6}
+  .callout .q-big{font-family:var(--serif-zh);font-weight:600;font-size:max(17px,1.6vw);line-height:1.42}
+
+  /* ============ Platform（平台卡） ============ */
+  .plat{display:flex;flex-direction:column;justify-content:flex-end;padding:2vh 0;border-top:1px solid currentColor;border-color:rgba(127,127,127,.35)}
+  .plat .name{font-family:var(--serif-zh);font-weight:700;font-size:1.8vw;margin-bottom:.6vh}
+  .plat .nb{font-family:var(--serif-en);font-weight:700;font-size:3.2vw;letter-spacing:-.02em;line-height:1;font-feature-settings:"tnum"}
+  .plat .sub{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;opacity:.55;margin-top:.6vh}
+  .plat .fill{font-family:var(--sans-zh);font-weight:300;font-size:2.4vw;opacity:.28;letter-spacing:-.01em;line-height:1}
+
+  /* ============ Rowline（表格行） ============ */
+  .rowline{display:grid;grid-template-columns:1fr 2fr 1fr;gap:2vw;padding:2.2vh 0;border-top:1px solid currentColor;align-items:center;border-color:rgba(127,127,127,.25)}
+  .rowline:last-child{border-bottom:1px solid currentColor;border-color:rgba(127,127,127,.25)}
+  .rowline .k{font-family:var(--serif-zh);font-weight:700;font-size:1.7vw}
+  .rowline .v{font-family:var(--sans-zh);font-weight:400;font-size:max(14px,1.2vw);opacity:.85;line-height:1.55}
+  .rowline .m{font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;opacity:.6;justify-self:end}
+
+  /* ============ Pillar（支柱卡片） ============ */
+  .pillar{display:flex;flex-direction:column;gap:1.8vh}
+  .pillar .ic{font-family:var(--serif-en);font-style:italic;font-size:2.6vw;opacity:.45;font-weight:400}
+  .pillar .ic svg{width:2.8vw;height:2.8vw;stroke-width:1.2;opacity:.7}
+  .pillar .t{font-family:var(--serif-zh);font-weight:700;font-size:2.4vw;line-height:1.1}
+  .pillar .d{font-family:var(--sans-zh);font-weight:400;font-size:max(14px,1.1vw);opacity:.76;line-height:1.6}
+
+  /* ============ Signature / Highlight ============ */
+  .sign{font-family:var(--serif-en);font-style:italic;font-weight:500;font-size:2vw;opacity:.7}
+  .hi{position:relative;display:inline}
+  .slide.dark .hi::after{content:"";position:absolute;left:-.1em;right:-.1em;bottom:-.05em;height:.28em;background:rgba(var(--paper-rgb),.15);z-index:-1}
+  .slide.light .hi::after{content:"";position:absolute;left:-.1em;right:-.1em;bottom:-.05em;height:.28em;background:rgba(var(--ink-rgb),.08);z-index:-1}
+
+  /* ============ Icons（Lucide via CDN） ============ */
+  .ico{width:1em;height:1em;display:inline-block;vertical-align:-.12em;stroke:currentColor;fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+  .ico-lg,.ico-md,.ico-sm{fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
+  .ico-lg{width:2.6vw;height:2.6vw;stroke-width:1.2;display:inline-block}
+  .ico-md{width:1.8vw;height:1.8vw;stroke-width:1.3;display:inline-block;vertical-align:-.4em}
+  .ico-sm{width:1.1vw;height:1.1vw;stroke-width:1.4;display:inline-block;vertical-align:-.15em;opacity:.7}
+
+  /* ============ 图片占位（虚线框，提示设计师位置） ============ */
+  .img-slot{border:1.5px dashed rgba(127,127,127,.4);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:1vh;padding:2vh 2vw;font-family:var(--mono);font-size:10px;letter-spacing:.28em;text-transform:uppercase;opacity:.55;position:relative;aspect-ratio:16/9;width:100%;max-height:56vh;margin-inline:auto;box-sizing:border-box}
+  .img-slot::before{content:"";position:absolute;inset:8px;border:1px solid currentColor;opacity:.2}
+  .img-slot .plus{font-size:2vw;font-weight:300;opacity:.5;letter-spacing:0}
+  .img-slot .label{position:relative;z-index:2;text-align:center}
+  .img-slot.r-4x3{aspect-ratio:4/3}
+  .img-slot.r-3x2{aspect-ratio:3/2}
+  .img-slot.r-1x1{aspect-ratio:1/1}
+
+  /* ============ 图片实填框（关键：固定高度 + 只裁底部） ============
+     重要约束：高度用内联 height:Nvh 精确控制，不要用 aspect-ratio（会撑破布局）
+     object-position:top center 保证严禁裁剪顶部和左右，只裁剪底部
+  */
+  .frame-img{overflow:hidden;position:relative;background:rgba(0,0,0,.04);box-sizing:border-box;width:100%;border-radius:4px}
+  .slide.dark .frame-img{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.12)}
+  .frame-img > img{width:100%;height:100%;object-fit:cover;object-position:top center;display:block}
+  .frame-cap{display:flex;justify-content:space-between;align-items:baseline;gap:1vw;margin-top:.8vh;font-family:var(--mono);font-size:10px;letter-spacing:.22em;text-transform:uppercase;opacity:.72}
+  .frame-cap .pf{font-family:var(--serif-zh);font-weight:600;font-size:max(13px,1vw);letter-spacing:.04em;text-transform:none;opacity:.94}
+  .frame-cap .nb{font-family:var(--serif-en);font-style:italic;font-size:max(15px,1.2vw);letter-spacing:.02em;text-transform:none;opacity:.88}
+  .frame-cap .idx{font-family:var(--mono);opacity:.5}
+  figure.tile{display:flex;flex-direction:column;margin:0;min-width:0}
+  figure.tile > .frame-img{flex:0 0 auto}
+
+  /* ============ 导航 ============ */
+  #nav{position:fixed;left:50%;bottom:2.6vh;transform:translateX(-50%);z-index:30;display:flex;gap:10px;padding:8px 14px;border-radius:999px;background:rgba(0,0,0,.18);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+  #nav .dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.3);cursor:pointer;transition:all .3s ease;border:0;padding:0}
+  #nav .dot:hover{background:rgba(255,255,255,.5);transform:scale(1.15)}
+  #nav .dot.active{background:rgba(255,255,255,.95);width:22px;border-radius:999px}
+  body.light-bg #nav{background:rgba(255,255,255,.25)}
+  body.light-bg #nav .dot{background:rgba(var(--ink-rgb),.25)}
+  body.light-bg #nav .dot.active{background:rgba(var(--ink-rgb),.9)}
+  #hint{position:fixed;bottom:3vh;right:3vw;z-index:30;font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;opacity:.4;mix-blend-mode:difference;color:#aaa}
+
+  /* ============================================================
+     ============ LAYOUTS API · 面向 agent 的类（v2）============
+     所有 layouts.md 中的骨架都基于下面这套命名。
+     如果你在 layouts.md 里看到某个类，它必须在下面有定义。
+     ============================================================ */
+
+  /* ---------- .frame：每页主内容容器 ---------- */
+  .frame{flex:1;display:flex;flex-direction:column;min-height:0}
+  /* 当 .frame 同时加了 grid 类时，grid 的 display:grid 覆盖 flex */
+  .frame.grid-2-7-5,
+  .frame.grid-2-6-6,
+  .frame.grid-2-8-4,
+  .frame.grid-3-3,
+  .frame.grid-6{display:grid}
+
+  /* ---------- 标题层级（API 名称，衬线为主） ---------- */
+  .h-hero{
+    font-family:var(--serif-zh);
+    font-weight:900;
+    font-size:10vw;
+    line-height:.96;
+    letter-spacing:-.02em;
+  }
+  .h-xl{
+    font-family:var(--serif-zh);
+    font-weight:700;
+    font-size:6.2vw;
+    line-height:1.08;
+    letter-spacing:-.01em;
+  }
+  .h-sub{
+    font-family:var(--serif-zh);
+    font-weight:500;
+    font-size:3.1vw;
+    line-height:1.25;
+    letter-spacing:0;
+    opacity:.7;
+  }
+  .h-md{
+    font-family:var(--serif-zh);
+    font-weight:600;
+    font-size:2.3vw;
+    line-height:1.3;
+  }
+  /* 英文标题专用（Playfair 衬线） */
+  .h-hero-en,.h-xl-en{font-family:var(--serif-en);letter-spacing:-.025em}
+
+  /* ---------- lead 引语 ---------- */
+  .lead{
+    font-family:var(--serif-zh);
+    font-weight:400;
+    font-size:1.75vw;
+    line-height:1.5;
+    opacity:.86;
+  }
+
+  /* ---------- meta-row 底部元数据 ---------- */
+  .meta-row{
+    display:flex;
+    gap:1.2em;
+    align-items:baseline;
+    flex-wrap:wrap;
+    font-family:var(--mono);
+    font-size:max(12px,.92vw);
+    letter-spacing:.16em;
+    text-transform:uppercase;
+    opacity:.6;
+  }
+
+  /* ---------- stat-card（数据大字报用） ---------- */
+  .stat-card{
+    display:flex;
+    flex-direction:column;
+    gap:.8vh;
+    align-items:flex-start;
+    padding-top:1.6vh;
+    border-top:1px solid currentColor;
+    border-color:rgba(127,127,127,.3);
+  }
+  .stat-card .stat-label{
+    font-family:var(--mono);
+    font-size:max(10px,.78vw);
+    letter-spacing:.24em;
+    text-transform:uppercase;
+    opacity:.55;
+  }
+  .stat-card .stat-nb{
+    font-family:var(--serif-en);
+    font-weight:800;
+    font-size:5.8vw;
+    line-height:.9;
+    letter-spacing:-.03em;
+    font-feature-settings:"tnum";
+    margin-top:.4vh;
+  }
+  .stat-card .stat-nb .stat-unit{
+    font-family:var(--serif-zh);
+    font-weight:500;
+    font-size:.38em;
+    letter-spacing:0;
+    opacity:.72;
+    margin-left:.14em;
+  }
+  .stat-card .stat-note{
+    font-family:var(--sans-zh);
+    font-weight:400;
+    font-size:max(13px,1.05vw);
+    line-height:1.5;
+    opacity:.72;
+    margin-top:.6vh;
+  }
+  /* 当 stat-card 用于 grid-4（2x2），数字可以更大 */
+  .grid-4 .stat-card .stat-nb{font-size:7.5vw}
+  /* 当只有 3 个，字也可以稍大 */
+  .grid-3 .stat-card .stat-nb{font-size:6.8vw}
+
+  /* ---------- pipeline（流水线） ---------- */
+  .pipeline-section{
+    margin-top:4.4vh;
+    padding-top:2.8vh;
+    border-top:1px dashed rgba(127,127,127,.32);
+  }
+  .pipeline-section:first-of-type{
+    border-top:0;
+    padding-top:0;
+    margin-top:3vh;
+  }
+  .pipeline-label{
+    font-family:var(--mono);
+    font-size:max(11px,.85vw);
+    letter-spacing:.24em;
+    text-transform:uppercase;
+    opacity:.62;
+    margin-bottom:2.2vh;
+  }
+  .pipeline{
+    display:grid;
+    grid-template-columns:repeat(5,1fr);
+    gap:1.2vw;
+  }
+  .pipeline[data-cols="3"]{grid-template-columns:repeat(3,1fr)}
+  .pipeline[data-cols="4"]{grid-template-columns:repeat(4,1fr)}
+  .pipeline[data-cols="6"]{grid-template-columns:repeat(6,1fr)}
+  .step{
+    display:flex;
+    flex-direction:column;
+    gap:.8vh;
+    padding-top:1.4vh;
+    border-top:1px solid currentColor;
+    border-color:rgba(127,127,127,.35);
+  }
+  .step-nb{
+    font-family:var(--serif-en);
+    font-style:italic;
+    font-weight:500;
+    font-size:1.15vw;
+    opacity:.45;
+  }
+  .step-title{
+    font-family:var(--sans-zh);
+    font-weight:700;
+    font-size:1.55vw;
+    letter-spacing:.01em;
+    line-height:1.2;
+  }
+  .step-desc{
+    font-family:var(--sans-zh);
+    font-weight:400;
+    font-size:max(12px,.95vw);
+    line-height:1.45;
+    opacity:.72;
+  }
+
+  /* ---------- 网格（layouts.md 所用） ---------- */
+  /* 这些类独立挂到任何容器上都能生效，不依赖 .frame 复合选择器 */
+  .grid-2-7-5{display:grid;grid-template-columns:7fr 5fr;gap:3vw 4vh;align-items:start}
+  .grid-2-6-6{display:grid;grid-template-columns:1fr 1fr;gap:3vw 4vh;align-items:start}
+  .grid-2-8-4{display:grid;grid-template-columns:8fr 4fr;gap:3vw 4vh;align-items:start}
+  .grid-3-3{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    grid-auto-rows:minmax(0,1fr);
+    gap:2.4vh 2vw;
+  }
+  /* grid-6 已在旧样式里定义为 3x2，这里仅补 align */
+
+  /* ---------- 图片 frame-img（layouts.md 主命名） ---------- */
+  /* 在旧样式里已定义，这里补 img-cap 命名别名与增强 */
+  figure.frame-img{margin:0;display:flex;flex-direction:column;min-width:0}
+  .img-cap{
+    display:block;
+    margin-top:.8vh;
+    font-family:var(--mono);
+    font-size:max(10px,.8vw);
+    letter-spacing:.22em;
+    text-transform:uppercase;
+    opacity:.6;
+  }
+  /* callout src 命名别名 */
+  .callout-src{
+    display:block;
+    margin-top:1.6vh;
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.2em;
+    text-transform:uppercase;
+    opacity:.6;
+  }
+
+  /* ---------- chrome & foot 补位（layouts.md 简单写法） ---------- */
+  .chrome{font-family:var(--mono);font-size:max(11px,.78vw);letter-spacing:.2em;text-transform:uppercase;opacity:.62}
+  .foot{font-family:var(--mono);font-size:max(11px,.78vw);letter-spacing:.18em;text-transform:uppercase;opacity:.5}
+
+  /* ---------- 响应式降级 ---------- */
+  @media (max-width:900px){
+    .display{font-size:16vw}
+    .display-zh{font-size:12vw}
+    .h1-zh{font-size:7vw}
+    .h-hero{font-size:14vw}
+    .h-xl{font-size:9vw}
+    .pipeline{grid-template-columns:repeat(2,1fr)}
+    .grid-2-7-5,.grid-2-6-6,.grid-2-8-4{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+
+<canvas id="bg-dark" class="bg"></canvas>
+<canvas id="bg-light" class="bg"></canvas>
+<div id="hint">← → 翻页 · ESC 索引</div>
+
+<div id="deck">
+
+<!-- ============================================================
+     SLIDES 插入区 · 在此处填充所有 <section class="slide ..."> 页面
+     每页模板参考 references/page-patterns.md
+     页面组件参考 references/components.md
+     ============================================================ -->
+
+<!-- SLIDE 01: 封面 -->
+<section class="slide hero dark">
+  <div class="chrome">
+    <div>劳务狗狗 · Labor Dog</div>
+    <div>Vol.01</div>
+  </div>
+  <div class="frame" style="display:grid; gap:4vh; align-content:center; min-height:80vh">
+    <div class="kicker">本地运行 · 一次录入 · 多端复用</div>
+    <h1 class="h-hero">劳务狗狗</h1>
+    <h2 class="h-sub">把繁琐的劳务支付流程，整理成一条清晰、可执行的路径。</h2>
+    <div class="meta-row" style="margin-top:2vh">
+      <span>v1.0</span><span>·</span><span>劳务支付辅助工具</span><span>·</span><span>2026</span>
+    </div>
+  </div>
+  <div class="foot">
+    <div>一款面向项目经理的本地劳务支付流程助手</div>
+    <div>— 2026 —</div>
+  </div>
+</section>
+
+<!-- SLIDE 02: 提出问题 -->
+<section class="slide light">
+  <div class="chrome">
+    <div>问题 · The Problem</div>
+    <div>Act I · 02 / 19</div>
+  </div>
+  <div class="frame" style="padding-top:6vh">
+    <div class="kicker">Act I · 硬数据</div>
+    <h2 class="h-xl" style="font-size:5.5vw; margin-bottom:3vh">做一笔劳务支付，<br>为什么总感觉流程很长？</h2>
+    <p class="lead" style="max-width:65vw; margin-bottom:4vh">因为它不是一个动作，而是一串动作。</p>
+    <div class="pipeline" data-cols="4" style="margin-top:3vh">
+      <div class="step">
+        <div class="step-nb">01</div>
+        <div class="step-title">劳务人员录入</div>
+        <div class="step-desc">钉钉系统</div>
+      </div>
+      <div class="step">
+        <div class="step-nb">02</div>
+        <div class="step-title">任务下达</div>
+        <div class="step-desc">钉钉系统</div>
+      </div>
+      <div class="step">
+        <div class="step-nb">03</div>
+        <div class="step-title">税务确认</div>
+        <div class="step-desc">人工核对</div>
+      </div>
+      <div class="step">
+        <div class="step-nb">04</div>
+        <div class="step-title">用友导出</div>
+        <div class="step-desc">多表导出</div>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:4vh; max-width:60vw">
+      不是某一步特别复杂，而是整条链条都在消耗注意力。
+    </div>
+  </div>
+  <div class="foot">
+    <div>Page 02 · 提出问题</div>
+    <div>— · —</div>
+  </div>
+</section>
+
+<!-- SLIDE 03: 真实痛点 -->
+<section class="slide dark">
+  <div class="chrome">
+    <div>痛点 · The Pain</div>
+    <div>Act I · 03 / 19</div>
+  </div>
+  <div class="frame" style="padding-top:6vh">
+    <div class="kicker">The Real Cost</div>
+    <h2 class="h-xl" style="font-size:5.2vw; margin-bottom:3vh">真正消耗时间的，<br>往往不是判断，而是重复。</h2>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:3vw; margin-top:2vh; align-items:start">
+      <div>
+        <p class="body-zh" style="margin-bottom:2vh">同一批劳务信息被不同系统和不同模板反复使用：</p>
+        <div class="callout" style="margin-bottom:2vh">
+          姓名、证件号、银行账号<br>项目名称、核算月份
+        </div>
+        <p class="body-zh">同时，这些信息本身并不总是整齐的——</p>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:1.5vh">
+        <div style="border-top:1px solid currentColor; padding-top:1.5vh; opacity:.7">
+          <div class="meta" style="margin-bottom:.8vh">初始 Excel 来源不统一</div>
+        </div>
+        <div style="border-top:1px solid currentColor; padding-top:1.5vh; opacity:.7">
+          <div class="meta" style="margin-bottom:.8vh">表头命名不一致</div>
+        </div>
+        <div style="border-top:1px solid currentColor; padding-top:1.5vh; opacity:.7">
+          <div class="meta" style="margin-bottom:.8vh">一个批次可能有多个人</div>
+        </div>
+        <div style="border-top:1px solid currentColor; padding-top:1.5vh; opacity:.7">
+          <div class="meta" style="margin-bottom:.8vh">国内居民与国外非居民规则不同</div>
+        </div>
+        <div style="border-top:1px solid currentColor; padding-top:1.5vh; opacity:.7">
+          <div class="meta" style="margin-bottom:.8vh">人民币、外币、税前、税后口径并存</div>
+        </div>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:4vh; max-width:55vw">
+      流程没有被组织起来。<br>信息也没有。
+    </div>
+  </div>
+  <div class="foot">
+    <div>Page 03 · 真实痛点</div>
+    <div>— · —</div>
+  </div>
+</section>
+
+<!-- SLIDE 04: 产品登场 -->
+<section class="slide hero dark">
+  <div class="chrome">
+    <div>方案 · The Solution</div>
+    <div>Act II · 04 / 19</div>
+  </div>
+  <div class="frame" style="display:grid; gap:5vh; align-content:center; min-height:80vh">
+    <div class="kicker">劳务狗狗 · Labor Dog</div>
+    <h1 class="h-hero" style="font-size:7.5vw">劳务狗狗要解决的，<br>不是某一个页面，<br>而是这条流程。</h1>
+    <p class="lead" style="max-width:60vw">
+      它不做钉钉、不做法务、不调用用友 API——<br>
+      它只做好一件事：把进入这些系统之前的准备工作，整理成一个稳定结构。
+    </p>
+  </div>
+  <div class="foot">
+    <div>Page 04 · 产品登场</div>
+    <div>— · —</div>
+  </div>
+</section>
+
+<!-- SLIDE 05: 核心思路 -->
+<section class="slide light">
+  <div class="chrome">
+    <div>核心思路 · Core Concept</div>
+    <div>Act II · 05 / 19</div>
+  </div>
+  <div class="frame" style="padding-top:5vh">
+    <div class="kicker">Two Objects</div>
+    <h2 class="h-xl" style="font-size:5.8vw; margin-bottom:2vh">先有一个批次，<br>再有这一批人。</h2>
+    <p class="lead" style="max-width:58vw; margin-bottom:5vh">劳务狗狗把这件事拆成两个核心对象，让该逐个处理的和该整批推进的，各自回到合适的位置。</p>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:4vw; margin-top:2vh">
+      <div class="pillar">
+        <div class="ic" style="font-size:2vw">01</div>
+        <div class="t">支付批次</div>
+        <div class="d">对应一个项目、一个核算月份、一次支付。批次级信息的容器。</div>
+      </div>
+      <div class="pillar">
+        <div class="ic" style="font-size:2vw">02</div>
+        <div class="t">劳务人员</div>
+        <div class="d">对应这一批次下的每一个人，包括主信息、结算信息、税务与导出信息。</div>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:5vh; max-width:55vw">
+      D1、D2 按人处理；DQ、SQ、Y、H 按批次处理。<br>
+      <span class="callout-src">— 流程一旦分层，复杂度就会下降。</span>
+    </div>
+  </div>
+  <div class="foot">
+    <div>Page 05 · 核心思路</div>
+    <div>— · —</div>
+  </div>
+</section>
+
+<!-- SLIDE 06: S页面 统一入口 -->
+<section class="slide hero light">
+  <div class="chrome">
+    <div>第一幕 · S 录入</div>
+    <div>Act III · 06 / 19</div>
+  </div>
+  <div class="frame" style="display:grid; gap:6vh; align-content:center; min-height:80vh">
+    <div class="kicker">S · 一次性录入</div>
+    <h1 class="h-hero" style="font-size:8vw">第一步，<br>不是去填系统，<br>而是先把信息收拢。</h1>
+    <p class="lead" style="max-width:55vw">统一维护批次头信息、人员主信息、人员结算信息、税务与导出信息。支持手工录入和 Excel 导入。</p>
+  </div>
+  <div class="foot">
+    <div>Page 06 · S 统一入口</div>
+    <div>— · —</div>
+  </div>
+</section>
+
+<!-- SLIDE 07: Excel导入 -->
+<section class="slide light">
+  <div class="chrome">
+    <div>导入 · Import</div>
+    <div>Act III · 07 / 19</div>
+  </div>
+  <div class="frame" style="padding-top:5vh">
+    <div class="kicker">Excel Import</div>
+    <h2 class="h-xl" style="font-size:5.5vw; margin-bottom:2vh">不是所有人的 Excel，<br>都长得一样。</h2>
+    <p class="lead" style="max-width:60vw; margin-bottom:4vh">劳务狗狗在导入时做的不是简单"读表"，而是字段级别的智能归一。</p>
+    <div class="pipeline" data-cols="5" style="margin-top:3vh">
+      <div class="step">
+        <div class="step-nb">01</div>
+        <div class="step-title">识别 Sheet</div>
+        <div class="step-desc">自动定位数据区</div>
+      </div>
+      <div class="step">
+        <div class="step-nb">02</div>
+        <div class="step-title">判断表头行</div>
+        <div class="step-desc">定位列名所在行</div>
+      </div>
+      <div class="step">
+        <div class="step-nb">03</div>
+        <div class="step-title">自动匹配</div>
+        <div class="step-desc">映射到标准字段</div>
+      </div>
+      <div class="step">
+        <div class="step-nb">04</div>
+        <div class="step-title">手工修正</div>
+        <div class="step-desc">映射可干预</div>
+      </div>
+      <div class="step">
+        <div class="step-nb">05</div>
+        <div class="step-title">数据清洗</div>
+        <div class="step-desc">手机号/金额/日期</div>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:4vh; max-width:55vw">
+      表格可以不统一，但结构必须统一。
+    </div>
+  </div>
+  <div class="foot">
+    <div>Page 07 · Excel 导入</div>
+    <div>— · —</div>
+  </div>
+</section>
+
+<!-- SLIDE 08: D1 钉钉人员录入 -->
+<section class="slide hero dark">
+  <div class="chrome">
+    <div>D1 · 钉钉录入</div>
+    <div>Act IV · 08 / 19</div>
+  </div>
+  <div class="frame" style="display:grid; gap:5vh; align-content:center; min-height:80vh">
+    <div class="kicker">D1 · 钉钉人员录入</div>
+    <h1 class="h-hero" style="font-size:7.2vw">到了钉钉，<br>不需要再把同一份信息<br>重新想一遍。</h1>
+    <p class="lead" style="max-width:58vw">
+      左侧选人，右侧字段卡片。每个字段可直接复制，国内居民和国外非居民自动按规则分流。
+    </p>
+  </div>
+  <div class="foot">
+    <div>Page 08 · D1 钉钉录入</div>
+    <div>— · —</div>
+  </div>
+</section>
+
+<!-- SLIDE 09: D2 任务下达 -->
+<section class="slide dark">
+  <div class="chrome">
+    <div>D2 · 任务下达</div>
+    <div>Act IV · 09 / 19</div>
+  </div>
+  <div class="frame" style="padding-top:5vh">
+    <div class="kicker">D2 · Task Dispatch</div>
+    <h2 class="h-xl" style="font-size:5.5vw; margin-bottom:3vh">"这个人是谁"与<br>"这次做了什么"，<br>本来就不是同一件事。</h2>
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:3vw; margin-top:3vh">
+      <div class="pillar">
+        <div class="t" style="font-size:1.8vw">批次级信息</div>
+        <div class="d">项目 · 项目方<br>核算月份 · 服务周期</div>
+      </div>
+      <div class="pillar">
+        <div class="t" style="font-size:1.8vw">人员级信息</div>
+        <div class="d">姓名 · 证件号<br>收款信息</div>
+      </div>
+      <div class="pillar">
+        <div class="t" style="font-size:1.8vw">结算级信息</div>
+        <div class="d">工作内容 · 劳务标准<br>核算单位 · 数量 · 单价</div>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:4vh; max-width:55vw">
+      信息没有增加，只是被重新组织。
+    </div>
+  </div>
+  <div class="foot">
+    <div>Page 09 · D2 任务下达</div>
+    <div>— · —</div>
+  </div>
+</section>
+
+<!-- SLIDE 10: 税务处理 -->
+<section class="slide light">
+  <div class="chrome">
+    <div>税务 · Tax</div>
+    <div>Act IV · 10 / 19</div>
+  </div>
+  <div class="frame" style="padding-top:5vh">
+    <div class="kicker">Tax Calculation</div>
+    <h2 class="h-xl" style="font-size:5.5vw; margin-bottom:2vh">有些计算，<br>不应该继续靠手工来回试。</h2>
+    <p class="lead" style="max-width:60vw; margin-bottom:4vh">当前版本支持国内居民人民币场景下的税务自动计算，三种模式：</p>
+    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:4vw; margin-top:2vh; flex:1; align-content:center">
+      <div class="pillar" style="text-align:center; align-items:center">
+        <div class="t" style="font-size:2.2vw; margin-bottom:1vh">税前正推税后</div>
+        <div class="d">已知税前，自动算税后</div>
+      </div>
+      <div class="pillar" style="text-align:center; align-items:center">
+        <div class="t" style="font-size:2.2vw; margin-bottom:1vh">税后反推税前</div>
+        <div class="d">已知税后，反推税前</div>
+      </div>
+      <div class="pillar" style="text-align:center; align-items:center">
+        <div class="t" style="font-size:2.2vw; margin-bottom:1vh">手动模式</div>
+        <div class="d">完全人工介入</div>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:4vh; max-width:55vw">
+      联动字段：税前金额、税后金额、个税、不含税金额、价税合计、付款金额。<br>
+      <span class="callout-src">— 该自动的自动，该人工的人工。</span>
+    </div>
+  </div>
+  <div class="foot">
+    <div>Page 10 · 税务处理</div>
+    <div>— · —</div>
+  </div>
+</section>
+
+<!-- SLIDE 11: DQ 通知管理员 -->
+<section class="slide hero dark">
+  <div class="chrome">
+    <div>DQ · 通知</div>
+    <div>Act V · 11 / 19</div>
+  </div>
+  <div class="frame" style="display:grid; gap:5vh; align-content:center; min-height:80vh">
+    <div class="kicker">DQ · 劳务管理员通知</div>
+    <h1 class="h-hero" style="font-size:7vw">有些推进动作，<br>不应该卡在<br>"我该怎么说"上。</h1>
+    <p class="lead" style="max-width:58vw">
+      系统按当前批次自动生成通知语，带上关键要素：项目方、项目名称、核算年月、人数、币种。
+    </p>
+  </div>
+  <div class="foot">
+    <div>Page 11 · DQ 通知</div>
+    <div>— · —</div>
+  </div>
+</section>
+
+<!-- SLIDE 12: SQ 税务确认表 -->
+<section class="slide light">
+  <div class="chrome">
+    <div>SQ · 税务确认</div>
+    <div>Act V · 12 / 19</div>
+  </div>
+  <div class="frame" style="padding-top:5vh">
+    <div class="kicker">SQ · Tax Confirmation</div>
+    <h2 class="h-xl" style="font-size:5.5vw; margin-bottom:2vh">到了财务确认这一步，<br>不应该再从零整理一次。</h2>
+    <p class="lead" style="max-width:60vw; margin-bottom:3vh">基于当前批次人员数据，生成批次摘要、表格预览、一键导出 Excel。</p>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:4vw; margin-top:2vh; align-items:center">
+      <div>
+        <p class="body-zh" style="margin-bottom:2vh">导出的文件遵循固定规则：</p>
+        <div class="rowline" style="margin-top:1vh">
+          <div class="k">固定列顺序</div>
+          <div class="v">字段顺序不因批次而变</div>
+          <div class="m">Stable</div>
+        </div>
+        <div class="rowline">
+          <div class="k">固定表头行</div>
+          <div class="v">第1行永远是表头</div>
+          <div class="m">Stable</div>
+        </div>
+        <div class="rowline">
+          <div class="k">固定数据起始行</div>
+          <div class="v">第3行开始是数据</div>
+          <div class="m">Stable</div>
+        </div>
+      </div>
+      <div class="callout" style="align-self:center">
+        过去：把同一批人员信息拆成税务审核需要的表格结构。<br><br>
+        现在：这个结构已经在工具里准备好，只需要核对和导出。
+      </div>
+    </div>
+    <div class="callout" style="margin-top:4vh">
+      模板没有消失，但重复整理这件事减少了。
+    </div>
+  </div>
+  <div class="foot">
+    <div>Page 12 · SQ 税务确认</div>
+    <div>— · —</div>
+  </div>
+</section>
+
+<!-- SLIDE 13: Y 用友导出 -->
+<section class="slide hero light">
+  <div class="chrome">
+    <div>Y · 用友导出</div>
+    <div>Act V · 13 / 19</div>
+  </div>
+  <div class="frame" style="display:grid; gap:4vh; align-content:center; min-height:80vh">
+    <div class="kicker">Y · 用友工作台</div>
+    <h1 class="h-hero" style="font-size:8vw">最靠后的环节，<br>往往最不应该<br>再耗费注意力。</h1>
+    <p class="lead" style="max-width:55vw">到了用友阶段，信息已经不再是重新拼出来的，而是前面一路沉淀下来的。</p>
+  </div>
+  <div class="foot">
+    <div>Page 13 · Y 用友导出</div>
+    <div>— · —</div>
+  </div>
+</section>
+
+<!-- SLIDE 14: Y 用友导出详情 -->
+<section class="slide light">
+  <div class="chrome">
+    <div>Y · 用友导出详情</div>
+    <div>Act V · 14 / 19</div>
+  </div>
+  <div class="frame" style="padding-top:4vh">
+    <div class="kicker">Y · 用友工作台详情</div>
+    <h2 class="h-xl" style="font-size:5vw; margin-bottom:3vh">Y 页面包含四块内容</h2>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:3vw; margin-top:2vh">
+      <div class="pillar">
+        <div class="t">表头复制 / 核对区</div>
+        <div class="d">关键信息做成卡片，便于逐项复制核查。</div>
+      </div>
+      <div class="pillar">
+        <div class="t">报销明细导出区</div>
+        <div class="d">预览 + 一键导出 Excel。</div>
+      </div>
+      <div class="pillar">
+        <div class="t">结算信息导出区</div>
+        <div class="d">预览 + 一键导出 Excel。</div>
+      </div>
+      <div class="pillar">
+        <div class="t">工作量明细导出区</div>
+        <div class="d">按模板生成工作量明细表。</div>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:4vh">
+      到最后一步，状态应该是"直接使用"，而不是"重新准备"。
+    </div>
+  </div>
+  <div class="foot">
+    <div>Page 14 · Y 用友导出详情</div>
+    <div>— · —</div>
+  </div>
+</section>
+
+<!-- SLIDE 15: H 签署与信函 -->
+<section class="slide dark">
+  <div class="chrome">
+    <div>H · 签署与信函</div>
+    <div>Act VI · 15 / 19</div>
+  </div>
+  <div class="frame" style="padding-top:5vh">
+    <div class="kicker">H · 签署与信函</div>
+    <h2 class="h-xl" style="font-size:5.5vw; margin-bottom:2vh">有些流程尾部的小环节，<br>单独看不大，<br>合起来很耗。</h2>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:4vw; margin-top:3vh; align-items:start">
+      <div class="pillar">
+        <div class="t">国内居民</div>
+        <div class="d">提供钉钉签署文件下发查询所需的关键信息卡片，便于复制。</div>
+      </div>
+      <div class="pillar">
+        <div class="t">国外非居民</div>
+        <div class="d">按人预览信函内容，支持一人一份 Word 导出。保留局部手动调整能力，不反写主数据。</div>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:4vh">
+      流程的最后几步，终于也被接住了。
+    </div>
+  </div>
+  <div class="foot">
+    <div>Page 15 · H 签署与信函</div>
+    <div>— · —</div>
+  </div>
+</section>
+
+<!-- SLIDE 16: 设置与维护 -->
+<section class="slide hero light">
+  <div class="chrome">
+    <div>设置 · Settings</div>
+    <div>Act VI · 16 / 19</div>
+  </div>
+  <div class="frame" style="display:grid; gap:4vh; align-content:center; min-height:80vh">
+    <div class="kicker">Settings · 设置与维护</div>
+    <h1 class="h-hero" style="font-size:7.5vw">如果一个工具要长期使用，<br>它就不能只会"跑一次"。</h1>
+    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:3vw; margin-top:3vh">
+      <div class="meta" style="line-height:2.2">批次管理</div>
+      <div class="meta" style="line-height:2.2">项目名称维护</div>
+      <div class="meta" style="line-height:2.2">项目方维护</div>
+      <div class="meta" style="line-height:2.2">劳务标准管理</div>
+      <div class="meta" style="line-height:2.2">文件模板维护</div>
+      <div class="meta" style="line-height:2.2">更多可扩展</div>
+    </div>
+  </div>
+  <div class="foot">
+    <div>Page 16 · 设置与维护</div>
+    <div>— · —</div>
+  </div>
+</section>
+
+<!-- SLIDE 17: 为什么是本地工具 -->
+<section class="slide light">
+  <div class="chrome">
+    <div>本地工具 · Local</div>
+    <div>Act VI · 17 / 19</div>
+  </div>
+  <div class="frame" style="padding-top:5vh">
+    <div class="kicker">Local First</div>
+    <h2 class="h-xl" style="font-size:5.5vw; margin-bottom:3vh">有些工具，<br>越靠近使用现场，越有效。</h2>
+    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:3vw; margin-top:4vh">
+      <div style="text-align:center; padding:3vh 0">
+        <div style="font-family:var(--serif-en); font-size:4vw; font-weight:700; opacity:.8">本地运行</div>
+        <div class="meta" style="margin-top:1vh">不需要服务器</div>
+      </div>
+      <div style="text-align:center; padding:3vh 0">
+        <div style="font-family:var(--serif-en); font-size:4vw; font-weight:700; opacity:.8">本地保存</div>
+        <div class="meta" style="margin-top:1vh">数据不离开电脑</div>
+      </div>
+      <div style="text-align:center; padding:3vh 0">
+        <div style="font-family:var(--serif-en); font-size:4vw; font-weight:700; opacity:.8">离线可用</div>
+        <div class="meta" style="margin-top:1vh">不需要联网</div>
+      </div>
+      <div style="text-align:center; padding:3vh 0">
+        <div style="font-family:var(--serif-en); font-size:4vw; font-weight:700; opacity:.8">零依赖</div>
+        <div class="meta" style="margin-top:1vh">不调用真实 API</div>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:5vh; max-width:55vw">
+      先把这一段做顺，比一开始就做成一个大而全的平台更有意义。
+    </div>
+  </div>
+  <div class="foot">
+    <div>Page 17 · 为什么是本地工具</div>
+    <div>— · —</div>
+  </div>
+</section>
+
+<!-- SLIDE 18: 真正变化 / Before After -->
+<section class="slide dark">
+  <div class="chrome">
+    <div>变化 · The Change</div>
+    <div>Act VII · 18 / 19</div>
+  </div>
+  <div class="frame" style="padding-top:5vh">
+    <div class="kicker">The Takeaway</div>
+    <h2 class="h-xl" style="font-size:5vw; margin-bottom:4vh">劳务狗狗真正改变的，<br>不是某一张表，<br>而是整个过程的节奏。</h2>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:6vw; margin-top:2vh; align-items:center">
+      <div>
+        <p class="meta" style="margin-bottom:2vh">过去</p>
+        <div class="body-zh" style="opacity:.7; line-height:2">收表<br>整理<br>再整理<br>再复制<br>再核对<br>再导出</div>
+      </div>
+      <div>
+        <p class="meta" style="margin-bottom:2vh">现在</p>
+        <div class="body-zh" style="line-height:2">录入<br>确认<br>输出<br>推进</div>
+      </div>
+    </div>
+    <div class="callout" style="margin-top:5vh; max-width:60vw; font-size:max(16px,1.4vw)">
+      少一次重复，就少一次出错。<br>少一次出错，就少一次返工。
+    </div>
+  </div>
+  <div class="foot">
+    <div>Page 18 · 真正改变</div>
+    <div>— · —</div>
+  </div>
+</section>
+
+<!-- SLIDE 19: 收尾 -->
+<section class="slide hero dark">
+  <div class="chrome">
+    <div>劳务狗狗 · Labor Dog</div>
+    <div>Vol.01</div>
+  </div>
+  <div class="frame" style="display:grid; gap:5vh; align-content:center; min-height:80vh">
+    <div class="kicker">Closing</div>
+    <h1 class="h-hero" style="font-size:7.5vw">从信息散落，<br>到流程成形。</h1>
+    <p class="lead" style="max-width:58vw">
+      劳务狗狗是一款面向项目经理的本地劳务支付流程助手。<br>
+      一次录入，多端复用，覆盖全链路。
+    </p>
+    <div class="meta-row" style="margin-top:3vh">
+      <span>劳务狗狗</span><span>·</span><span>把复杂流程，梳成一条更顺的路</span>
+    </div>
+  </div>
+  <div class="foot">
+    <div>— 2026 —</div>
+    <div>— · —</div>
+  </div>
+</section>
+
+</div>
+
+<div id="nav"></div>
+
+<script>
+/* =============== WebGL 双背景 ===============
+   深色页：Holographic Dispersion（全息色散 · 钛金暗流）—— 彩虹微扰、鼠标径向涟漪
+   浅色页：Spiral Vortex（旋转涡流 · 银色珍珠）—— domain-warp 流动、无中心
+   修改风格请参考 references/webgl-backgrounds.md
+*/
+const VS = `attribute vec2 position;void main(){gl_Position=vec4(position,0.0,1.0);}`;
+
+const FS_DARK = `precision highp float;
+uniform vec2 u_resolution;uniform float u_time;uniform vec2 u_mouse;
+vec3 palette(float t,vec3 a,vec3 b,vec3 c,vec3 d){return a+b*cos(6.28318*(c*t+d));}
+void main(){
+  vec2 uv=gl_FragCoord.xy/u_resolution.xy;
+  vec2 p=uv*2.0-1.0;p.x*=u_resolution.x/u_resolution.y;
+  vec2 m=u_mouse*2.0-1.0;m.x*=u_resolution.x/u_resolution.y;
+  float md=length(p-m);
+  float mr=sin(md*15.0-u_time*4.0)*exp(-md*3.0);p+=mr*0.08;
+  vec2 p0=p;
+  for(float i=1.0;i<4.0;i++){
+    p.x+=0.1/i*sin(i*3.0*p.y+u_time*0.4)+0.05;
+    p.y+=0.1/i*cos(i*2.0*p.x+u_time*0.3)-0.05;
+  }
+  float r=length(p);float ang=atan(p.y,p.x);
+  vec3 a=vec3(0.12,0.12,0.13);
+  vec3 b=vec3(0.03,0.04,0.05);
+  vec3 c=vec3(1.0,1.0,1.0);
+  vec3 d=vec3(0.1,0.2,0.4);
+  vec3 col=palette(r*1.5+p0.x*0.5+u_time*0.1,a,b,c,d);
+  float disp=sin(r*25.0-u_time*1.5+ang*2.0)*0.5+0.5;
+  col+=vec3(disp*0.015,disp*0.01,disp*0.02);
+  float hi=pow(sin(p.x*4.0+p.y*3.0+u_time)*0.5+0.5,8.0);
+  col+=hi*0.08;
+  vec3 base=vec3(0.05,0.05,0.06);
+  col=mix(base,col,0.85);
+  gl_FragColor=vec4(col,1.0);
+}`;
+
+const FS_LIGHT = `precision highp float;
+uniform vec2 u_resolution;uniform float u_time;uniform vec2 u_mouse;
+float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float noise(vec2 p){
+  vec2 i=floor(p),f=fract(p);
+  float a=hash(i),b=hash(i+vec2(1,0));
+  float c=hash(i+vec2(0,1)),d=hash(i+vec2(1,1));
+  vec2 u=f*f*(3.0-2.0*f);
+  return mix(a,b,u.x)+(c-a)*u.y*(1.0-u.x)+(d-b)*u.x*u.y;
+}
+float fbm(vec2 p){
+  float v=0.0,a=0.5;
+  mat2 m=mat2(0.80,0.60,-0.60,0.80);
+  for(int i=0;i<5;i++){v+=a*noise(p);p=m*p*2.02;a*=0.5;}
+  return v;
+}
+void main(){
+  vec2 uv=gl_FragCoord.xy/u_resolution.xy;
+  vec2 p=uv;p.x*=u_resolution.x/u_resolution.y;
+  vec2 m=u_mouse;m.x*=u_resolution.x/u_resolution.y;
+  vec2 md=p-m;float dl=length(md);
+  p+=normalize(md+vec2(0.0001))*exp(-dl*5.0)*0.03;
+  vec2 q=vec2(fbm(p*1.8+u_time*0.07),fbm(p*1.8+vec2(5.2,1.3)+u_time*0.06));
+  vec2 r=vec2(fbm(p*2.0+q*1.3+vec2(1.7,9.2)+u_time*0.05),
+              fbm(p*2.0+q*1.3+vec2(8.3,2.8)+u_time*0.04));
+  float f=fbm(p*2.2+r*1.5);
+  vec3 silverDark=vec3(0.86,0.85,0.84);
+  vec3 paper=vec3(0.955,0.945,0.925);
+  vec3 col=mix(silverDark,paper,f);
+  float ph=r.x*2.2+u_time*0.35;
+  col+=vec3(0.78,0.62,0.92)*sin(ph)*0.055;
+  col+=vec3(0.55,0.72,0.95)*sin(ph*0.8+2.0)*0.05;
+  float hl=smoothstep(0.48,0.92,f);
+  col+=hl*0.06;
+  gl_FragColor=vec4(col,1.0);
+}`;
+
+const mouse={x:0.5,y:0.5};
+addEventListener('mousemove',e=>{mouse.x=e.clientX/innerWidth;mouse.y=e.clientY/innerHeight});
+
+function bootGL(canvasId, fsSrc){
+  const canvas=document.getElementById(canvasId);
+  const gl=canvas.getContext('webgl',{alpha:false,antialias:true});
+  if(!gl) return ()=>false;
+  const mk=(t,s)=>{const sh=gl.createShader(t);gl.shaderSource(sh,s);gl.compileShader(sh);return sh};
+  const prog=gl.createProgram();
+  gl.attachShader(prog,mk(gl.VERTEX_SHADER,VS));
+  gl.attachShader(prog,mk(gl.FRAGMENT_SHADER,fsSrc));
+  gl.linkProgram(prog);gl.useProgram(prog);
+  const buf=gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]),gl.STATIC_DRAW);
+  const pos=gl.getAttribLocation(prog,'position');
+  gl.enableVertexAttribArray(pos);gl.vertexAttribPointer(pos,2,gl.FLOAT,false,0,0);
+  const lRes=gl.getUniformLocation(prog,'u_resolution');
+  const lT=gl.getUniformLocation(prog,'u_time');
+  const lM=gl.getUniformLocation(prog,'u_mouse');
+  const resize=()=>{
+    const d=Math.min(window.devicePixelRatio||1,2);
+    canvas.width=innerWidth*d;canvas.height=innerHeight*d;
+    gl.viewport(0,0,canvas.width,canvas.height);
+  };
+  addEventListener('resize',resize);resize();
+  return (tSec)=>{
+    gl.uniform2f(lRes,canvas.width,canvas.height);
+    gl.uniform1f(lT,tSec);
+    gl.uniform2f(lM,mouse.x,1-mouse.y);
+    gl.drawArrays(gl.TRIANGLES,0,6);
+    return true;
+  };
+}
+const drawDark=bootGL('bg-dark',FS_DARK);
+const drawLight=bootGL('bg-light',FS_LIGHT);
+const t0=Date.now();
+(function loop(){
+  const t=(Date.now()-t0)/1000;
+  drawDark(t);drawLight(t);
+  requestAnimationFrame(loop);
+})();
+
+// =============== 导航（翻页 / 圆点 / 键盘 / 滚轮 / 触屏） ===============
+const deck=document.getElementById('deck');
+const slides=deck.querySelectorAll('.slide');
+const nav=document.getElementById('nav');
+let idx=0,total=slides.length,lock=false;
+
+// 关键：矫正 deck 宽度为 total * 100vw，否则翻页会错位
+deck.style.width=(total*100)+'vw';
+
+slides.forEach((s,i)=>{
+  const b=document.createElement('button');
+  b.className='dot';b.dataset.i=i;b.setAttribute('aria-label','Page '+(i+1));
+  b.onclick=()=>go(i);
+  nav.appendChild(b);
+});
+
+function go(n){
+  if(lock)return;
+  idx=Math.max(0,Math.min(total-1,n));
+  deck.style.transform=`translateX(${-idx*100}vw)`;
+  nav.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('active',i===idx));
+  /* 主题切换：优先读 data-theme，其次从 class（light/dark）推断 */
+  const el=slides[idx];
+  const th=el.dataset.theme || (el.classList.contains('light')?'light':(el.classList.contains('dark')?'dark':'dark'));
+  document.body.classList.toggle('light-bg',th==='light');
+  lock=true;setTimeout(()=>lock=false,700);
+}
+
+addEventListener('keydown',e=>{
+  if(e.key==='ArrowRight'||e.key==='PageDown'||e.key===' '||e.key==='ArrowDown')go(idx+1);
+  if(e.key==='ArrowLeft'||e.key==='PageUp'||e.key==='ArrowUp')go(idx-1);
+  if(e.key==='Home')go(0);
+  if(e.key==='End')go(total-1);
+});
+
+let wheelTO=null,wheelAcc=0;
+addEventListener('wheel',e=>{
+  wheelAcc+=e.deltaY+e.deltaX;
+  if(Math.abs(wheelAcc)>50){go(idx+(wheelAcc>0?1:-1));wheelAcc=0;}
+  clearTimeout(wheelTO);wheelTO=setTimeout(()=>wheelAcc=0,150);
+},{passive:true});
+
+let tx=0,ty=0;
+addEventListener('touchstart',e=>{tx=e.touches[0].clientX;ty=e.touches[0].clientY},{passive:true});
+addEventListener('touchend',e=>{
+  const dx=(e.changedTouches[0].clientX-tx);
+  const dy=(e.changedTouches[0].clientY-ty);
+  if(Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy))go(idx+(dx<0?1:-1));
+},{passive:true});
+
+go(0);
+</script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>lucide.createIcons();</script>
+</body>
+</html>
